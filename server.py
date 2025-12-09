@@ -39,10 +39,14 @@ def get_flexoffers_domains(limit: int = 10) -> str:
         # Parse XML response to dict
         data = xmltodict.parse(response.text)
         
-        # Convert to JSON for easier handling
-        domains = data.get("domains", {}).get("domain", [])
-        # Handle single domain case: xmltodict returns a dict instead of a list
-        domain_count = len(domains) if isinstance(domains, list) else (1 if domains else 0)
+        # Handle different response structures
+        # Check for DomainDto (single domain response)
+        if "DomainDto" in data:
+            domain_count = 1
+        else:
+            # Check for domains collection
+            domains = data.get("domains", {}).get("domain", [])
+            domain_count = len(domains) if isinstance(domains, list) else (1 if domains else 0)
         
         result = {
             "status": "success",
