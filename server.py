@@ -56,6 +56,86 @@ def get_flexoffers_domains(limit: int = 10) -> str:
         
         return json.dumps(result, indent=2)
         
+
+    except requests.exceptions.RequestException as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"API request failed: {str(e)}"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool
+def get_flexoffers_promotions(name: str, page: int = 1, page_size: int = 10) -> str:
+    """
+    Search for promotions from FlexOffers API.
+    
+    Args:
+        name: Search term for the promotion (e.g. "nike shoe")
+        page: Page number (default: 1)
+        page_size: Number of results per page (default: 10)
+        
+    Returns:
+        JSON string containing filtered promotion information
+    """
+    try:
+        url = f"{FLEXOFFERS_BASE_URL}/promotions"
+        headers = {
+            "accept": "application/xml",
+            "apiKey": FLEXOFFERS_API_KEY
+        }
+        params = {
+            "names": name,
+            "page": page,
+            "pageSize": page_size
+        }
+        
+        response = requests.get(url, headers=headers, params=params, timeout=10, verify=False)
+        response.raise_for_status()
+        
+        # Parse XML response to dict
+        data = xmltodict.parse(response.text)
+        
+        # Extract Results
+        results_container = data.get("PaginatedResultSetOfLinkDto", {}).get("Results", {})
+        if not results_container:
+             return json.dumps({"status": "success", "data": [], "total_count": 0}, indent=2)
+             
+        link_dtos = results_container.get("LinkDto", [])
+        
+        # Ensure it's a list even if single item
+        if not isinstance(link_dtos, list):
+            link_dtos = [link_dtos]
+            
+        # Filter fields
+        filtered_results = []
+        for item in link_dtos:
+            filtered_item = {
+                "AdvertiserId": item.get("AdvertiserId"),
+                "AdvertiserName": item.get("AdvertiserName"),
+                "LinkName": item.get("LinkName"),
+                "LinkDescription": item.get("LinkDescription"),
+                "PromotionalTypes": item.get("PromotionalTypes"),
+                "LinkUrl": item.get("LinkUrl")
+            }
+            filtered_results.append(filtered_item)
+            
+        total_count = data.get("PaginatedResultSetOfLinkDto", {}).get("TotalCount", 0)
+        
+        result = {
+            "status": "success",
+            "data": filtered_results,
+            "total_count": total_count,
+            "page": page,
+            "page_size": page_size
+        }
+        
+        return json.dumps(result, indent=2)
+
     except requests.exceptions.RequestException as e:
         return json.dumps({
             "status": "error",
