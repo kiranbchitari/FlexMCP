@@ -5,6 +5,7 @@ FastMCP Server with FlexOffers Integration
 import requests
 import xmltodict
 import json
+import time
 from fastmcp import FastMCP
 
 # Create server
@@ -199,12 +200,12 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
             "apikey": api_key
         }
         
-        # Add country_code as query parameter if provided
-        params = {}
+        # Add cache-busting parameter and country_code if provided
+        params = {"_t": int(time.time() * 1000)}  # Cache buster
         if country_code:
             params["countryCode"] = country_code
         
-        response = requests.get(url, headers=headers, params=params if params else None, timeout=10, verify=False)
+        response = requests.get(url, headers=headers, params=params, timeout=10, verify=False)
         response.raise_for_status()
         
         # Parse JSON response
@@ -288,11 +289,11 @@ def apply_to_program_by_name(api_key: str = None, program_name: str = None, coun
         # Step 1: Fetch programs to find the matching one
         programs_url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
         headers = {"apikey": api_key}
-        params = {}
+        params = {"_t": int(time.time() * 1000)}  # Cache buster
         if country_code:
             params["countryCode"] = country_code
         
-        response = requests.get(programs_url, headers=headers, params=params if params else None, timeout=10, verify=False)
+        response = requests.get(programs_url, headers=headers, params=params, timeout=10, verify=False)
         response.raise_for_status()
         data = response.json()
         
