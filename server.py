@@ -291,7 +291,7 @@ def apply_to_program(api_key: str = None, advertiser_id: int = None, accept_term
             "acceptTerms": "true"
         }
         
-        response = requests.post(url, headers=headers, params=params, timeout=10, verify=False)
+        response = requests.get(url, headers=headers, params=params, timeout=10, verify=False)
         response.raise_for_status()
         
         # Try to parse response
