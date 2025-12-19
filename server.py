@@ -16,21 +16,29 @@ FLEXOFFERS_BASE_URL = "https://api.flexoffers.com/v3"
 
 
 @mcp.tool
-def get_flexoffers_domains(limit: int = 10) -> str:
+def get_flexoffers_domains(api_key: str = None, limit: int = 10) -> str:
     """
     Fetch domains from FlexOffers API
     
     Args:
+        api_key: FlexOffers API key (required - ask user if not provided)
         limit: Maximum number of domains to return (default: 10)
     
     Returns:
         JSON string containing domain information
     """
+    # Check if API key is provided
+    if not api_key:
+        return json.dumps({
+            "status": "missing_api_key",
+            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+        }, indent=2)
+    
     try:
         url = f"{FLEXOFFERS_BASE_URL}/domains"
         headers = {
             "accept": "application/xml",
-            "apiKey": FLEXOFFERS_API_KEY
+            "apiKey": api_key
         }
         
         response = requests.get(url, headers=headers, timeout=10, verify=False)
@@ -70,11 +78,12 @@ def get_flexoffers_domains(limit: int = 10) -> str:
 
 
 @mcp.tool
-def get_flexoffers_promotions(name: str, page: int = 1, page_size: int = 10) -> str:
+def get_flexoffers_promotions(api_key: str = None, name: str = None, page: int = 1, page_size: int = 10) -> str:
     """
     Search for promotions from FlexOffers API.
     
     Args:
+        api_key: FlexOffers API key (required - ask user if not provided)
         name: Search term for the promotion (e.g. "nike shoe")
         page: Page number (default: 1)
         page_size: Number of results per page (default: 10)
@@ -82,11 +91,25 @@ def get_flexoffers_promotions(name: str, page: int = 1, page_size: int = 10) -> 
     Returns:
         JSON string containing filtered promotion information
     """
+    # Check if API key is provided
+    if not api_key:
+        return json.dumps({
+            "status": "missing_api_key",
+            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+        }, indent=2)
+    
+    # Check if name is provided
+    if not name:
+        return json.dumps({
+            "status": "missing_name",
+            "message": "Please provide a search term for the promotion (e.g. 'nike shoe')."
+        }, indent=2)
+    
     try:
         url = f"{FLEXOFFERS_BASE_URL}/promotions"
         headers = {
             "accept": "application/xml",
-            "apiKey": FLEXOFFERS_API_KEY
+            "apiKey": api_key
         }
         params = {
             "names": name,
@@ -132,6 +155,74 @@ def get_flexoffers_promotions(name: str, page: int = 1, page_size: int = 10) -> 
             "total_count": total_count,
             "page": page,
             "page_size": page_size
+        }
+        
+        return json.dumps(result, indent=2)
+
+    except requests.exceptions.RequestException as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"API request failed: {str(e)}"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool
+def get_top_programs(api_key: str = None, country_code: str = None) -> str:
+    """
+    Get top 10 affiliate programs for promoting and applying from FlexLinks API.
+    
+    Args:
+        api_key: FlexOffers API key (required - ask user if not provided)
+        country_code: Optional country code to filter programs (e.g., 'US', 'GB')
+    
+    Returns:
+        JSON string containing top programs for promotion opportunities
+    """
+    # Check if API key is provided
+    if not api_key:
+        return json.dumps({
+            "status": "missing_api_key",
+            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+        }, indent=2)
+    
+    try:
+        url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
+        headers = {
+            "apikey": api_key
+        }
+        
+        # Add country_code as query parameter if provided
+        params = {}
+        if country_code:
+            params["countryCode"] = country_code
+        
+        response = requests.get(url, headers=headers, params=params if params else None, timeout=10, verify=False)
+        response.raise_for_status()
+        
+        # Parse JSON response
+        data = response.json()
+        
+        # Check if API returned success
+        if not data.get("Success", False):
+            return json.dumps({
+                "status": "error",
+                "message": "API returned unsuccessful response"
+            }, indent=2)
+        
+        # Extract programs from Data field and return top 10
+        programs = data.get("Data", [])
+        top_programs = programs[:10]
+        
+        result = {
+            "status": "success",
+            "data": top_programs,
+            "total_returned": len(top_programs),
+            "message": "Top programs for promoting and applying"
         }
         
         return json.dumps(result, indent=2)
