@@ -177,13 +177,14 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
     Get top affiliate PROGRAMS to JOIN or APPLY for. 
     Use this tool when users want to discover NEW programs to partner with, NOT for finding promotional links or offers.
     This returns programs the user can apply to become an affiliate for.
+    The response contains ProgramID which should be used as advertiser_id in apply_to_program tool.
     
     Args:
         api_key: FlexOffers API key (required - ask user if not provided)
         country_code: Optional country code to filter programs (e.g., 'US', 'GB')
     
     Returns:
-        JSON string containing top programs available for joining
+        JSON string containing top programs with ProgramID, ProgramName, DomainURL, etc.
     """
     # Check if API key is provided
     if not api_key:
@@ -245,10 +246,11 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
 def apply_to_program(api_key: str = None, advertiser_id: int = None, accept_terms: bool = None) -> str:
     """
     Apply to an affiliate program/advertiser on FlexOffers.
+    IMPORTANT: Use the ProgramID from get_top_programs response as the advertiser_id parameter.
     
     Args:
         api_key: FlexOffers API key (required - ask user if not provided)
-        advertiser_id: The Advertiser ID (also called Program ID) to apply for (required)
+        advertiser_id: The ProgramID from get_top_programs response (required - do not make up this value)
         accept_terms: User must explicitly accept the terms (required - must be true to proceed)
     
     Returns:
