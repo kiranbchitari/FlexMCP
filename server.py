@@ -11,7 +11,6 @@ from fastmcp import FastMCP
 mcp = FastMCP("FlexOffers MCP Server")
 
 # FlexOffers API Configuration
-FLEXOFFERS_API_KEY = "beb20686-606a-4e92-8c71-bfa967317ddc"
 FLEXOFFERS_BASE_URL = "https://api.flexoffers.com/v3"
 
 
@@ -80,16 +79,17 @@ def get_flexoffers_domains(api_key: str = None, limit: int = 10) -> str:
 @mcp.tool
 def get_flexoffers_promotions(api_key: str = None, name: str = None, page: int = 1, page_size: int = 10) -> str:
     """
-    Search for promotions from FlexOffers API.
+    Search for promotional LINKS, OFFERS, DEALS, and COUPONS from FlexOffers. 
+    Use this tool when users ask for affiliate links, promotional offers, deals, coupons, or product links to share.
     
     Args:
         api_key: FlexOffers API key (required - ask user if not provided)
-        name: Search term for the promotion (e.g. "nike shoe")
+        name: Search term for the promotion/offer (e.g. "nike shoes", "travel deals", "electronics")
         page: Page number (default: 1)
         page_size: Number of results per page (default: 10)
         
     Returns:
-        JSON string containing filtered promotion information
+        JSON string containing promotional links and offers
     """
     # Check if API key is provided
     if not api_key:
@@ -174,14 +174,16 @@ def get_flexoffers_promotions(api_key: str = None, name: str = None, page: int =
 @mcp.tool
 def get_top_programs(api_key: str = None, country_code: str = None) -> str:
     """
-    Get top 10 affiliate programs for promoting and applying from FlexLinks API.
+    Get top affiliate PROGRAMS to JOIN or APPLY for. 
+    Use this tool when users want to discover NEW programs to partner with, NOT for finding promotional links or offers.
+    This returns programs the user can apply to become an affiliate for.
     
     Args:
         api_key: FlexOffers API key (required - ask user if not provided)
         country_code: Optional country code to filter programs (e.g., 'US', 'GB')
     
     Returns:
-        JSON string containing top programs for promotion opportunities
+        JSON string containing top programs available for joining
     """
     # Check if API key is provided
     if not api_key:
@@ -223,6 +225,85 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
             "data": top_programs,
             "total_returned": len(top_programs),
             "message": "Top programs for promoting and applying"
+        }
+        
+        return json.dumps(result, indent=2)
+
+    except requests.exceptions.RequestException as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"API request failed: {str(e)}"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool
+def apply_to_program(api_key: str = None, advertiser_id: int = None, accept_terms: bool = None) -> str:
+    """
+    Apply to an affiliate program/advertiser on FlexOffers.
+    
+    Args:
+        api_key: FlexOffers API key (required - ask user if not provided)
+        advertiser_id: The Advertiser ID (also called Program ID) to apply for (required)
+        accept_terms: User must explicitly accept the terms (required - must be true to proceed)
+    
+    Returns:
+        JSON string containing the application result
+    """
+    # Check if API key is provided
+    if not api_key:
+        return json.dumps({
+            "status": "missing_api_key",
+            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+        }, indent=2)
+    
+    # Check if advertiser_id is provided
+    if not advertiser_id:
+        return json.dumps({
+            "status": "missing_advertiser_id",
+            "message": "Please provide the Advertiser ID (also called Program ID) you want to apply for."
+        }, indent=2)
+    
+    # Check if user has accepted terms
+    if accept_terms is None:
+        return json.dumps({
+            "status": "terms_not_accepted",
+            "message": "You must accept the terms to apply for this program. Please confirm that you accept the terms and conditions."
+        }, indent=2)
+    
+    if not accept_terms:
+        return json.dumps({
+            "status": "terms_rejected",
+            "message": "You must accept the terms to proceed with the application. Please set accept_terms to true if you agree."
+        }, indent=2)
+    
+    try:
+        url = f"{FLEXOFFERS_BASE_URL}/advertisers/applyAdvertiser"
+        headers = {
+            "apikey": api_key
+        }
+        params = {
+            "advertiserId": advertiser_id,
+            "acceptTerms": "true"
+        }
+        
+        response = requests.post(url, headers=headers, params=params, timeout=10, verify=False)
+        response.raise_for_status()
+        
+        # Try to parse response
+        try:
+            data = response.json()
+        except:
+            data = response.text
+        
+        result = {
+            "status": "success",
+            "message": f"Successfully applied to program/advertiser ID: {program_id}",
+            "response": data
         }
         
         return json.dumps(result, indent=2)
