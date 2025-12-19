@@ -243,6 +243,128 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
 
 
 @mcp.tool
+def apply_to_program_by_name(api_key: str = None, program_name: str = None, country_code: str = None, accept_terms: bool = None) -> str:
+    """
+    Find a program by name and apply to it. This tool automatically finds the correct ProgramID.
+    Use this when the user wants to apply to a program they saw in the get_top_programs results.
+    
+    Args:
+        api_key: FlexOffers API key (required - ask user if not provided)
+        program_name: The name of the program to apply for (from ProgramName in get_top_programs results)
+        country_code: Optional country code to filter programs (e.g., 'US', 'GB')
+        accept_terms: User must explicitly accept the terms (required - must be true to proceed)
+    
+    Returns:
+        JSON string containing the application result
+    """
+    # Check if API key is provided
+    if not api_key:
+        return json.dumps({
+            "status": "missing_api_key",
+            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+        }, indent=2)
+    
+    # Check if program_name is provided
+    if not program_name:
+        return json.dumps({
+            "status": "missing_program_name",
+            "message": "Please provide the program name you want to apply for (e.g., 'Total AV', 'Nike')."
+        }, indent=2)
+    
+    # Check if user has accepted terms
+    if accept_terms is None:
+        return json.dumps({
+            "status": "terms_not_accepted",
+            "message": "You must accept the terms to apply for this program. Please confirm that you accept the terms and conditions."
+        }, indent=2)
+    
+    if not accept_terms:
+        return json.dumps({
+            "status": "terms_rejected",
+            "message": "You must accept the terms to proceed with the application. Please set accept_terms to true if you agree."
+        }, indent=2)
+    
+    try:
+        # Step 1: Fetch programs to find the matching one
+        programs_url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
+        headers = {"apikey": api_key}
+        params = {}
+        if country_code:
+            params["countryCode"] = country_code
+        
+        response = requests.get(programs_url, headers=headers, params=params if params else None, timeout=10, verify=False)
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data.get("Success", False):
+            return json.dumps({
+                "status": "error",
+                "message": "Failed to fetch programs list"
+            }, indent=2)
+        
+        programs = data.get("Data", [])
+        
+        # Step 2: Find matching program by name (case-insensitive partial match)
+        matching_program = None
+        search_name = program_name.lower()
+        for program in programs:
+            prog_name = program.get("ProgramName", "").lower()
+            if search_name in prog_name or prog_name in search_name:
+                matching_program = program
+                break
+        
+        if not matching_program:
+            # Return available programs for user to choose from
+            available = [p.get("ProgramName") for p in programs[:10]]
+            return json.dumps({
+                "status": "program_not_found",
+                "message": f"Could not find a program matching '{program_name}'. Available programs: {', '.join(available)}"
+            }, indent=2)
+        
+        program_id = matching_program.get("ProgramID")
+        actual_name = matching_program.get("ProgramName")
+        
+        # Step 3: Apply to the program
+        apply_url = f"{FLEXOFFERS_BASE_URL}/advertisers/applyAdvertiser"
+        apply_params = {
+            "advertiserId": program_id,
+            "acceptTerms": "true"
+        }
+        
+        apply_response = requests.get(apply_url, headers=headers, params=apply_params, timeout=10, verify=False)
+        apply_response.raise_for_status()
+        
+        try:
+            apply_data = apply_response.json()
+        except:
+            apply_data = apply_response.text
+        
+        result = {
+            "status": "success",
+            "message": f"Successfully applied to '{actual_name}' (ProgramID: {program_id})",
+            "program_details": {
+                "ProgramID": program_id,
+                "ProgramName": actual_name,
+                "DomainURL": matching_program.get("DomainURL")
+            },
+            "response": apply_data
+        }
+        
+        return json.dumps(result, indent=2)
+
+    except requests.exceptions.RequestException as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"API request failed: {str(e)}"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool
 def apply_to_program(api_key: str = None, advertiser_id: int = None, accept_terms: bool = None) -> str:
     """
     Apply to an affiliate program/advertiser on FlexOffers.
