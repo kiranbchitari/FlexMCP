@@ -451,6 +451,45 @@ def echo_tool(text: str) -> str:
     return text
 
 
+@mcp.tool
+def get_user_email() -> str:
+    """
+    Get the current user's email address from the request header.
+    This tool reads the 'user-email' header from the incoming request.
+    
+    Returns:
+        JSON string containing the user's email address
+    """
+    from fastmcp import Context
+    import contextvars
+    
+    try:
+        # Access the request context from FastMCP
+        ctx = Context.get_current()
+        if ctx and hasattr(ctx, 'request') and ctx.request:
+            email = ctx.request.headers.get("user-email", None)
+            if email:
+                return json.dumps({
+                    "status": "success",
+                    "email": email
+                }, indent=2)
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "message": "No user-email header found in request"
+                }, indent=2)
+        else:
+            return json.dumps({
+                "status": "error",
+                "message": "Could not access request context"
+            }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Error retrieving email: {str(e)}"
+        }, indent=2)
+
+
 @mcp.resource("echo://static")
 def echo_resource() -> str:
     return "Echo!"
