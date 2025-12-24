@@ -6,7 +6,7 @@ import requests
 import xmltodict
 import json
 import time
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 
 # Create server
 mcp = FastMCP("FlexOffers MCP Server")
@@ -452,7 +452,7 @@ def echo_tool(text: str) -> str:
 
 
 @mcp.tool
-def get_user_email() -> str:
+def get_user_email(ctx: Context) -> str:
     """
     Get the current user's email address from the request header.
     This tool reads the 'user-email' header from the incoming request.
@@ -460,14 +460,11 @@ def get_user_email() -> str:
     Returns:
         JSON string containing the user's email address
     """
-    from fastmcp import Context
-    import contextvars
-    
     try:
-        # Access the request context from FastMCP
-        ctx = Context.get_current()
-        if ctx and hasattr(ctx, 'request') and ctx.request:
-            email = ctx.request.headers.get("user-email", None)
+        # Access the request from the context
+        request = ctx.request
+        if request and hasattr(request, 'headers'):
+            email = request.headers.get("user-email", None)
             if email:
                 return json.dumps({
                     "status": "success",
@@ -481,7 +478,7 @@ def get_user_email() -> str:
         else:
             return json.dumps({
                 "status": "error",
-                "message": "Could not access request context"
+                "message": "Could not access request from context"
             }, indent=2)
     except Exception as e:
         return json.dumps({
