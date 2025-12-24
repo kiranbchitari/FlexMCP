@@ -6,22 +6,12 @@ import requests
 import xmltodict
 import json
 import time
-from contextvars import ContextVar
-from typing import TypedDict, Optional
+from typing import Optional
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 
 
-# Context type for header-derived data
-class UserContext(TypedDict):
-    email: Optional[str]
-    level: Optional[str]
-
-
-# ContextVar to store user context derived from headers
-user_context: ContextVar[UserContext] = ContextVar('user_context', default={'email': None, 'level': None})
-
-
-def derive_ctx_from_headers(headers) -> UserContext:
+def derive_ctx_from_headers(headers: dict) -> dict:
     """
     Extract user context from HTTP headers.
     Similar to the TypeScript pattern:
@@ -36,36 +26,7 @@ def derive_ctx_from_headers(headers) -> UserContext:
     return {"email": email, "level": level}
 
 
-# Create ASGI middleware that extracts headers into contextvars
-class HeaderContextMiddleware:
-    """
-    ASGI Middleware that extracts headers and stores them in contextvars
-    for access within MCP tools.
-    """
-    def __init__(self, app):
-        self.app = app
-    
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            # Extract headers from scope
-            headers = {}
-            for key, value in scope.get("headers", []):
-                headers[key.decode("utf-8")] = value.decode("utf-8")
-            
-            # Derive context from headers
-            ctx = derive_ctx_from_headers(headers)
-            
-            # Set the contextvar
-            token = user_context.set(ctx)
-            try:
-                await self.app(scope, receive, send)
-            finally:
-                user_context.reset(token)
-        else:
-            await self.app(scope, receive, send)
-
-
-# Create server with middleware
+# Create server
 mcp = FastMCP("FlexOffers MCP Server")
 
 # FlexOffers API Configuration
@@ -509,17 +470,20 @@ def echo_tool(text: str) -> str:
 
 
 @mcp.tool
-def get_user_email() -> str:
+async def get_user_email() -> str:
     """
     Get the current user's email address from the request header.
-    This tool reads the 'user-email' header that was extracted by the middleware.
+    This tool reads the 'user-email' header from the HTTP request.
     
     Returns:
         JSON string containing the user's email address and level
     """
     try:
-        # Get context from contextvar (populated by middleware)
-        ctx = user_context.get()
+        # Get HTTP headers using FastMCP's dependency function
+        headers = get_http_headers()
+        
+        # Derive context from headers
+        ctx = derive_ctx_from_headers(headers)
         email = ctx.get("email")
         level = ctx.get("level")
         
@@ -532,7 +496,8 @@ def get_user_email() -> str:
         else:
             return json.dumps({
                 "status": "error",
-                "message": "No user-email header found in request"
+                "message": "No user-email header found in request",
+                "headers_received": list(headers.keys()) if headers else []
             }, indent=2)
     except Exception as e:
         return json.dumps({
@@ -559,13 +524,5 @@ def echo_prompt(text: str) -> str:
 
 
 if __name__ == "__main__":
-    import uvicorn
-    
-    # Get the ASGI app from FastMCP
-    app = mcp.http_app(path="/mcp")
-    
-    # Wrap with our header context middleware
-    app = HeaderContextMiddleware(app)
-    
-    # Run with uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Run with SSE transport for HTTP-based MCP
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
