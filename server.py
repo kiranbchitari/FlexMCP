@@ -471,20 +471,17 @@ def echo_tool(text: str) -> str:
 
 
 @mcp.tool
-async def get_user_email() -> str:
+async def get_account_details() -> str:
     """
-    Get the current user's information from request headers.
-    Reads email, ut (encrypted userid), and at (encrypted accountid) headers.
+    Get the current user's account details from request headers.
+    Reads ut (encrypted userid) and at (encrypted accountid) headers and decrypts them.
     
     Returns:
-        JSON string containing user's email, userid, and accountid
+        JSON string containing userid and accountid
     """
     try:
         # Get HTTP headers using FastMCP's dependency function
         headers = get_http_headers()
-        
-        # Get email header
-        email = headers.get("user-email", None)
         
         # Get encrypted headers
         encrypted_ut = headers.get("ut", None)
@@ -506,17 +503,16 @@ async def get_user_email() -> str:
             except Exception as e:
                 accountid = f"decryption_error: {str(e)}"
         
-        if email or userid or accountid:
+        if userid or accountid:
             return json.dumps({
                 "status": "success",
-                "email": email,
                 "userid": userid,
                 "accountid": accountid
             }, indent=2)
         else:
             return json.dumps({
                 "status": "error",
-                "message": "No user headers found in request",
+                "message": "No account headers (ut, at) found in request",
                 "headers_received": list(headers.keys()) if headers else []
             }, indent=2)
     except Exception as e:
