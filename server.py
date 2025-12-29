@@ -9,6 +9,7 @@ import time
 from typing import Optional
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
+from encryption_helper import EncryptionHelper
 
 
 def derive_ctx_from_headers(headers: dict) -> dict:
@@ -472,31 +473,50 @@ def echo_tool(text: str) -> str:
 @mcp.tool
 async def get_user_email() -> str:
     """
-    Get the current user's email address from the request header.
-    This tool reads the 'user-email' header from the HTTP request.
+    Get the current user's information from request headers.
+    Reads email, ut (encrypted userid), and at (encrypted accountid) headers.
     
     Returns:
-        JSON string containing the user's email address and level
+        JSON string containing user's email, userid, and accountid
     """
     try:
         # Get HTTP headers using FastMCP's dependency function
         headers = get_http_headers()
         
-        # Derive context from headers
-        ctx = derive_ctx_from_headers(headers)
-        email = ctx.get("email")
-        level = ctx.get("level")
+        # Get email header
+        email = headers.get("user-email", None)
         
-        if email:
+        # Get encrypted headers
+        encrypted_ut = headers.get("ut", None)
+        encrypted_at = headers.get("at", None)
+        
+        # Decrypt the headers
+        userid = None
+        accountid = None
+        
+        if encrypted_ut:
+            try:
+                userid = EncryptionHelper.decrypt(encrypted_ut)
+            except Exception as e:
+                userid = f"decryption_error: {str(e)}"
+        
+        if encrypted_at:
+            try:
+                accountid = EncryptionHelper.decrypt(encrypted_at)
+            except Exception as e:
+                accountid = f"decryption_error: {str(e)}"
+        
+        if email or userid or accountid:
             return json.dumps({
                 "status": "success",
                 "email": email,
-                "level": level
+                "userid": userid,
+                "accountid": accountid
             }, indent=2)
         else:
             return json.dumps({
                 "status": "error",
-                "message": "No user-email header found in request",
+                "message": "No user headers found in request",
                 "headers_received": list(headers.keys()) if headers else []
             }, indent=2)
     except Exception as e:
