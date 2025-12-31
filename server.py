@@ -192,7 +192,74 @@ def get_flexoffers_promotions(api_key: str = None, name: str = None, page: int =
 
 
 @mcp.tool
-def get_top_programs(api_key: str = None, country_code: str = None) -> str:
+async def get_user_traffic_sources() -> str:
+    """
+    Get the list of traffic sources available for the current user.
+    Use this tool when users need to select a traffic source ID for other operations.
+    This should be called first if the user doesn't have a traffic source ID.
+    
+    Returns:
+        JSON string containing list of traffic sources with TrafficSourceId and Name
+    """
+    try:
+        # Get ut and at from HTTP headers
+        http_headers = get_http_headers()
+        ut = http_headers.get("ut", None)
+        at = http_headers.get("at", None)
+        
+        # Check if required headers are provided
+        if not ut or not at:
+            return json.dumps({
+                "status": "missing_tokens",
+                "message": "Missing required headers: ut (user token) and at (account token) must be provided in request headers.",
+                "headers_received": list(http_headers.keys()) if http_headers else []
+            }, indent=2)
+        
+        url = "https://content.flexlinks.com/chat/GetUserTrafficSources"
+        headers = {
+            "ut": ut,
+            "at": at
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10, verify=False)
+        response.raise_for_status()
+        
+        # Parse JSON response
+        data = response.json()
+        
+        # Check if API returned success
+        if not data.get("Success", False):
+            return json.dumps({
+                "status": "error",
+                "message": "API returned unsuccessful response"
+            }, indent=2)
+        
+        # Extract traffic sources from Data field
+        traffic_sources = data.get("Data", [])
+        
+        result = {
+            "status": "success",
+            "data": traffic_sources,
+            "total_count": len(traffic_sources),
+            "message": "Select a traffic source from the list. Use the TrafficSourceId for other operations."
+        }
+        
+        return json.dumps(result, indent=2)
+
+    except requests.exceptions.RequestException as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"API request failed: {str(e)}"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Unexpected error: {str(e)}"
+        }, indent=2)
+
+
+@mcp.tool
+async def get_top_programs(traffic_source_id: int, country_code: str = None) -> str:
     """
     Get top affiliate PROGRAMS to JOIN or APPLY for. 
     Use this tool when users want to discover NEW programs to partner with, NOT for finding promotional links or offers.
@@ -200,27 +267,36 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
     The response contains ProgramID which should be used as advertiser_id in apply_to_program tool.
     
     Args:
-        api_key: FlexOffers API key (required - ask user if not provided)
-        country_code: Optional country code to filter programs (e.g., 'US', 'GB')
+        traffic_source_id: Traffic source ID (required)
+        country_code: Optional country code to filter programs (e.g., 'US', 'CA', 'GB')
     
     Returns:
         JSON string containing top programs with ProgramID, ProgramName, DomainURL, etc.
     """
-    # Check if API key is provided
-    if not api_key:
-        return json.dumps({
-            "status": "missing_api_key",
-            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
-        }, indent=2)
-    
     try:
+        # Get ut and at from HTTP headers
+        http_headers = get_http_headers()
+        ut = http_headers.get("ut", None)
+        at = http_headers.get("at", None)
+        
+        # Check if required headers are provided
+        if not ut or not at:
+            return json.dumps({
+                "status": "missing_tokens",
+                "message": "Missing required headers: ut (user token) and at (account token) must be provided in request headers.",
+                "headers_received": list(http_headers.keys()) if http_headers else []
+            }, indent=2)
+        
         url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
         headers = {
-            "apikey": api_key
+            "ut": ut,
+            "at": at
         }
         
-        # Add cache-busting parameter and country_code if provided
-        params = {"_t": int(time.time() * 1000)}  # Cache buster
+        # Set query parameters
+        params = {
+            "trafficSourceId": traffic_source_id
+        }
         if country_code:
             params["countryCode"] = country_code
         
@@ -263,25 +339,31 @@ def get_top_programs(api_key: str = None, country_code: str = None) -> str:
 
 
 @mcp.tool
-def apply_to_program_by_name(api_key: str = None, program_name: str = None, country_code: str = None, accept_terms: bool = None) -> str:
+async def apply_to_program_by_name(program_name: str = None, traffic_source_id: int = None, country_code: str = None, accept_terms: bool = None) -> str:
     """
     Find a program by name and apply to it. This tool automatically finds the correct ProgramID.
     Use this when the user wants to apply to a program they saw in the get_top_programs results.
     
     Args:
-        api_key: FlexOffers API key (required - ask user if not provided)
         program_name: The name of the program to apply for (from ProgramName in get_top_programs results)
-        country_code: Optional country code to filter programs (e.g., 'US', 'GB')
+        traffic_source_id: Traffic source ID (required)
+        country_code: Optional country code to filter programs (e.g., 'US', 'CA', 'GB')
         accept_terms: User must explicitly accept the terms (required - must be true to proceed)
     
     Returns:
         JSON string containing the application result
     """
-    # Check if API key is provided
-    if not api_key:
+    # Get ut and at from HTTP headers
+    http_headers = get_http_headers()
+    ut = http_headers.get("ut", None)
+    at = http_headers.get("at", None)
+    
+    # Check if required headers are provided
+    if not ut or not at:
         return json.dumps({
-            "status": "missing_api_key",
-            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
+            "status": "missing_tokens",
+            "message": "Missing required headers: ut (user token) and at (account token) must be provided in request headers.",
+            "headers_received": list(http_headers.keys()) if http_headers else []
         }, indent=2)
     
     # Check if program_name is provided
@@ -289,6 +371,13 @@ def apply_to_program_by_name(api_key: str = None, program_name: str = None, coun
         return json.dumps({
             "status": "missing_program_name",
             "message": "Please provide the program name you want to apply for (e.g., 'Total AV', 'Nike')."
+        }, indent=2)
+    
+    # Check if traffic_source_id is provided
+    if not traffic_source_id:
+        return json.dumps({
+            "status": "missing_traffic_source_id",
+            "message": "Please provide the traffic source ID (required)."
         }, indent=2)
     
     # Check if user has accepted terms
@@ -307,8 +396,13 @@ def apply_to_program_by_name(api_key: str = None, program_name: str = None, coun
     try:
         # Step 1: Fetch programs to find the matching one
         programs_url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
-        headers = {"apikey": api_key}
-        params = {"_t": int(time.time() * 1000)}  # Cache buster
+        headers = {
+            "ut": ut,
+            "at": at
+        }
+        params = {
+            "trafficSourceId": traffic_source_id
+        }
         if country_code:
             params["countryCode"] = country_code
         
