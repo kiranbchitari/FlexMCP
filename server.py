@@ -259,7 +259,7 @@ async def get_user_traffic_sources() -> str:
 
 
 @mcp.tool
-async def get_top_programs(traffic_source_id: int, country_code: str = None) -> str:
+async def get_top_programs(traffic_source_id: int = None, country_code: str = None) -> str:
     """
     Get top affiliate PROGRAMS to JOIN or APPLY for. 
     Use this tool when users want to discover NEW programs to partner with, NOT for finding promotional links or offers.
@@ -267,7 +267,7 @@ async def get_top_programs(traffic_source_id: int, country_code: str = None) -> 
     The response contains ProgramID which should be used as advertiser_id in apply_to_program tool.
     
     Args:
-        traffic_source_id: Traffic source ID (required)
+        traffic_source_id: Traffic source ID (if not provided, will return available traffic sources to select from)
         country_code: Optional country code to filter programs (e.g., 'US', 'CA', 'GB')
     
     Returns:
@@ -286,6 +286,32 @@ async def get_top_programs(traffic_source_id: int, country_code: str = None) -> 
                 "message": "Missing required headers: ut (user token) and at (account token) must be provided in request headers.",
                 "headers_received": list(http_headers.keys()) if http_headers else []
             }, indent=2)
+        
+        # If traffic_source_id is not provided, fetch available traffic sources
+        if not traffic_source_id:
+            traffic_sources_url = "https://content.flexlinks.com/chat/GetUserTrafficSources"
+            headers = {
+                "ut": ut,
+                "at": at
+            }
+            
+            ts_response = requests.get(traffic_sources_url, headers=headers, timeout=10, verify=False)
+            ts_response.raise_for_status()
+            ts_data = ts_response.json()
+            
+            if ts_data.get("Success", False):
+                traffic_sources = ts_data.get("Data", [])
+                return json.dumps({
+                    "status": "traffic_source_required",
+                    "message": "Please select a traffic source from the list below and provide the TrafficSourceId:",
+                    "available_traffic_sources": traffic_sources,
+                    "total_count": len(traffic_sources)
+                }, indent=2)
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "message": "Failed to fetch traffic sources. Please provide a traffic_source_id."
+                }, indent=2)
         
         url = "https://content.flexlinks.com/chat/GetGapOpportunityPrograms"
         headers = {
