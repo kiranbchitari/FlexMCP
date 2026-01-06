@@ -35,68 +35,6 @@ FLEXOFFERS_BASE_URL = "https://api.flexoffers.com/v3"
 
 
 @mcp.tool
-def get_flexoffers_domains(api_key: str = None, limit: int = 10) -> str:
-    """
-    Fetch domains from FlexOffers API
-    
-    Args:
-        api_key: FlexOffers API key (required - ask user if not provided)
-        limit: Maximum number of domains to return (default: 10)
-    
-    Returns:
-        JSON string containing domain information
-    """
-    # Check if API key is provided
-    if not api_key:
-        return json.dumps({
-            "status": "missing_api_key",
-            "message": "Please provide your FlexOffers API key to proceed. Ask the user for their API key."
-        }, indent=2)
-    
-    try:
-        url = f"{FLEXOFFERS_BASE_URL}/domains"
-        headers = {
-            "accept": "application/xml",
-            "apiKey": api_key
-        }
-        
-        response = requests.get(url, headers=headers, timeout=10, verify=False)
-        response.raise_for_status()
-        
-        # Parse XML response to dict
-        data = xmltodict.parse(response.text)
-        
-        # Handle different response structures
-        # Check for DomainDto (single domain response)
-        if "DomainDto" in data:
-            domain_count = 1
-        else:
-            # Check for domains collection
-            domains = data.get("domains", {}).get("domain", [])
-            domain_count = len(domains) if isinstance(domains, list) else (1 if domains else 0)
-        
-        result = {
-            "status": "success",
-            "data": data,
-            "total_domains": domain_count
-        }
-        
-        return json.dumps(result, indent=2)
-        
-
-    except requests.exceptions.RequestException as e:
-        return json.dumps({
-            "status": "error",
-            "message": f"API request failed: {str(e)}"
-        }, indent=2)
-    except Exception as e:
-        return json.dumps({
-            "status": "error",
-            "message": f"Unexpected error: {str(e)}"
-        }, indent=2)
-
-
-@mcp.tool
 def get_flexoffers_promotions(api_key: str = None, name: str = None, page: int = 1, page_size: int = 10) -> str:
     """
     Search for promotional LINKS, OFFERS, DEALS, and COUPONS from FlexOffers. 
@@ -220,8 +158,11 @@ async def get_user_traffic_sources() -> str:
             "ut": ut,
             "at": at
         }
+        params = {
+            "_cb": int(time.time() * 1000)  # Cache buster
+        }
         
-        response = requests.get(url, headers=headers, timeout=10, verify=False)
+        response = requests.get(url, headers=headers, params=params, timeout=10, verify=False)
         response.raise_for_status()
         
         # Parse JSON response
@@ -294,8 +235,11 @@ async def get_top_programs(traffic_source_id: int = None, country_code: str = No
                 "ut": ut,
                 "at": at
             }
+            ts_params = {
+                "_cb": int(time.time() * 1000)  # Cache buster
+            }
             
-            ts_response = requests.get(traffic_sources_url, headers=headers, timeout=10, verify=False)
+            ts_response = requests.get(traffic_sources_url, headers=headers, params=ts_params, timeout=10, verify=False)
             ts_response.raise_for_status()
             ts_data = ts_response.json()
             
@@ -321,7 +265,8 @@ async def get_top_programs(traffic_source_id: int = None, country_code: str = No
         
         # Set query parameters
         params = {
-            "trafficSourceId": traffic_source_id
+            "trafficSourceId": traffic_source_id,
+            "_cb": int(time.time() * 1000)  # Cache buster
         }
         if country_code:
             params["countryCode"] = country_code
@@ -427,7 +372,8 @@ async def apply_to_program_by_name(program_name: str = None, traffic_source_id: 
             "at": at
         }
         params = {
-            "trafficSourceId": traffic_source_id
+            "trafficSourceId": traffic_source_id,
+            "_cb": int(time.time() * 1000)  # Cache buster
         }
         if country_code:
             params["countryCode"] = country_code
@@ -585,12 +531,6 @@ def apply_to_program(api_key: str = None, advertiser_id: int = None, accept_term
 
 
 @mcp.tool
-def echo_tool(text: str) -> str:
-    """Echo the input text"""
-    return text
-
-
-@mcp.tool
 async def get_account_details() -> str:
     """
     Get the current user's account details from request headers.
@@ -640,7 +580,6 @@ async def get_account_details() -> str:
             "status": "error",
             "message": f"Error: {str(e)}"
         }, indent=2)
-
 
 
 @mcp.resource("echo://static")
